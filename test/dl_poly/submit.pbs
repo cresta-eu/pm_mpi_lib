@@ -1,0 +1,24 @@
+#!/bin/bash --login
+#PBS -N dlpoly_cray
+#PBS -l select=4
+#PBS -l walltime=01:00:00
+
+# Replace this with your budget code
+#PBS -A z01-cse
+
+jobdir="job01"
+
+# Move to directory that script was submitted from
+export PBS_O_WORKDIR=$(readlink -f $PBS_O_WORKDIR)
+cd $PBS_O_WORKDIR
+cd $jobdir
+
+export MPICH_VERSION_DISPLAY=1
+export MPICH_ENV_DISPLAY=1
+export MPICH_RANK_REORDER_DISPLAY=1
+export MPICH_CPUMASK_DISPLAY=1
+
+# This prevents any system libraries from using threading
+export OMP_NUM_THREADS=1
+
+aprun -b -n 96 ./DLPOLY.Z >& stdouterr

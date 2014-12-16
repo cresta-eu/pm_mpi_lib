@@ -1,0 +1,27 @@
+dmimcl rigid
+
+temperature         400
+pressure              0.001
+
+cutoff                9
+rvdw cutoff           8
+ewald precision       1.0E-05
+quaternion tolerance  1.0E-05
+
+timestep variable     0.002
+integration velocity verlet
+ensemble npt ber      0.1  2.0
+
+steps             20000
+equilibration       300
+
+restart noscale
+scale                10
+
+print                50
+stats                10
+
+job time           3600
+close time           20
+
+finish
