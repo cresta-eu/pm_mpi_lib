@@ -34,7 +34,7 @@ typedef enum pm_counters {
 #define MAXFLEN 100
 #define MAXLLEN 100
 
-static char ver[]="2.0.0";
+static char ver[]="3.1.0";
 
 static char *fname[]={
   "freshness",
@@ -54,13 +54,19 @@ static FILE *fps[PM_NCOUNTERS];
 static int rank = -1;
 static int min_node_rank = 0;
 static int monitor_cnt = 0;
-static FILE *fpmc = NULL;
-static double first_time = 0.0;
-static unsigned long long int first_energy = 0;
+static int non_monitor_cnt = 0;
+static MPI_Comm mpi_comm_monitor;
+static FILE *fout = NULL;
+static int first_monitor = 1;
+static double tm0 = 0.0;
+static unsigned long long int entot0 = 0;
 static int last_nstep = 0;
 
+static int open = 0;
 
-void pm_init_counters(int n,pm_counter_e *counters){
+
+
+void pm_init_counters(int n, pm_counter_e *counters) {
   int i,k;
   int nc;
   int opened_freshness=0;
@@ -68,215 +74,223 @@ void pm_init_counters(int n,pm_counter_e *counters){
 
   if (n==0) {
     nc=PM_NCOUNTERS;
-   } else {
+  }
+  else {
     nc=n;
-   }
+  }
  
-  for(i=0;i<nc;i++){
+  for (i=0; i<nc; i++) {
+    if (n == 0) {
+      k = i;
+    }
+    else {
+      k = counters[i];
+    }
+    
+    if (k == PM_COUNTER_FRESHNESS) {
+      opened_freshness = 1;
+    }
+    
+    strcpy(file, syspmcdir);
+    strcat(file, "/");
+    strncat(file, fname[k], MAXFLEN);
 
-    if (n==0) {
-      k=i;
-     } else {
-      k=counters[i];
-     }
-    if (k==PM_COUNTER_FRESHNESS) opened_freshness=1;
-    strcpy(file,syspmcdir);
-    strcat(file,"/");
-    strncat(file,fname[k],MAXFLEN);
-
-    if ( (fps[k]=fopen(file,"r"))!=NULL){
-      //             fprintf(stderr,"pm_lib(pm_init): Opened %s\n",file);
+    if ((fps[k] = fopen(file,"r")) != NULL) {
+      // fprintf(stderr,"pm_lib(pm_init): Opened %s\n",file);
       nopen++;
-     } else {
-      if (! (k==PM_COUNTER_ACCEL_POWER || 
-             k==PM_COUNTER_ACCEL_ENERGY ||
-             k==PM_COUNTER_ACCEL_POWER_CAP) ) {
-       fprintf(stderr,"pm_lib(pm_init): Failed to open file %s\n",file);
-       }
-     }
+    }
+    else {
+      if (!(k == PM_COUNTER_ACCEL_POWER || 
+            k == PM_COUNTER_ACCEL_ENERGY ||
+            k == PM_COUNTER_ACCEL_POWER_CAP)) {
+        fprintf(stderr,"pm_lib(pm_init): Failed to open file %s\n",file);
+      }
+    }
   }
 
-  if (! opened_freshness){
-    k=PM_COUNTER_FRESHNESS;
-    strcpy(file,syspmcdir);
-    strcat(file,"/");
-    strncat(file,fname[k],MAXFLEN);
-    if ( (fps[k]=fopen(file,"r"))!=NULL){
+  if (!opened_freshness) {
+    k = PM_COUNTER_FRESHNESS;
+    strcpy(file, syspmcdir);
+    strcat(file, "/");
+    strncat(file, fname[k], MAXFLEN);
+    if ((fps[k] = fopen(file,"r")) != NULL) {
       nopen++;
-      //      fprintf(stderr,"pm_lib(pm_init): had to open %s\n",file);
-     } else {
-       fprintf(stderr,"pm_lib(pm_init): Failed to open file %s\n",file);
-     }
-
+      //fprintf(stderr,"pm_lib(pm_init): had to open %s\n",file);
+    }
+    else {
+      fprintf(stderr,"pm_lib(pm_init): Failed to open file %s\n",file);
+    }
   }
 
 }
 
-void pm_init(){
-  pm_init_counters(0,NULL);
+void pm_init() {
+  pm_init_counters(0, NULL);
 }
 
-void pm_close(){
-  int k;
-  for(k=0;k<PM_NCOUNTERS;k++) {
-    if (fps[k]!=NULL) {
+void pm_close() {
+  for(int k = 0; k < PM_NCOUNTERS; k++) {
+    if (fps[k] != NULL) {
       fclose(fps[k]);
     }
   }
 }
 
 // Return the number of coutner files that are currently open
-int pm_get_num_opencounters(){
+int pm_get_num_opencounters() {
   return nopen;
 }
 
 // Return first line from file into line
 // Do not alter line if file is not already open
-static void fgetfirstline(char *line,int size,FILE *fp){
+static void fgetfirstline(char *line, int size, FILE *fp) {
   
-  if (fp==NULL) return;
-
+  if (fp==NULL) {
+    return;
+  }
+  
   rewind(fp);
-  while(fgets(line,size,fp)!=NULL || errno ==EAGAIN);
+  while(fgets(line,size,fp) != NULL || errno == EAGAIN);
 }
 
-char* pm_get_counter_label(pm_counter_e counter){
-
+char* pm_get_counter_label(pm_counter_e counter) {
   return fname[counter];
-
 }
 
-int pm_get_freshness(){
+int pm_get_freshness() {
   int freshness;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_FRESHNESS]);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_FRESHNESS]);
   freshness=atoi(input_line);
   
   return freshness;
-
 }
 
-int pm_get_power(){
+int pm_get_power() {
   int power;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_POWER]);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_POWER]);
   power=atoi(input_line);
   
   return power;
-
 }
 
-int pm_get_accel_power(){
+int pm_get_accel_power() {
   int accel_power;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_ACCEL_POWER]);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_ACCEL_POWER]);
   accel_power=atoi(input_line);
   
   return accel_power;
-
 }
 
-int pm_get_power_cap(){
+int pm_get_power_cap() {
   int power_cap;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_POWER_CAP]);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_POWER_CAP]);
   power_cap=atoi(input_line);
   
   return power_cap;
-
 }
 
-int pm_get_accel_power_cap(){
+int pm_get_accel_power_cap() {
   int accel_power_cap;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_ACCEL_POWER_CAP]);
-  accel_power_cap=atoi(input_line);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_ACCEL_POWER_CAP]);
+  accel_power_cap = atoi(input_line);
   
   return accel_power_cap;
-
 }
 
-unsigned long long int pm_get_energy(){
+unsigned long long int pm_get_energy() {
   unsigned long long int energy;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_ENERGY]);
-  energy=strtoull(input_line,NULL,10);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_ENERGY]);
+  energy=strtoull(input_line, NULL, 10);
   
   return energy;
-
 }
 
-unsigned long long int pm_get_accel_energy(){
+unsigned long long int pm_get_accel_energy() {
   unsigned long long int accel_energy;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_ACCEL_ENERGY]);
-  accel_energy=strtoull(input_line,NULL,10);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_ACCEL_ENERGY]);
+  accel_energy=strtoull(input_line, NULL, 10);
   
   return accel_energy;
-
 }
 
-unsigned long long int pm_get_startup(){
+unsigned long long int pm_get_startup() {
   unsigned long long int startup;
   char input_line[MAXLLEN];
 
-  fgetfirstline(input_line,MAXLLEN,fps[PM_COUNTER_STARTUP]);
-  startup = strtoull(input_line,NULL,10);
+  fgetfirstline(input_line, MAXLLEN, fps[PM_COUNTER_STARTUP]);
+  startup = strtoull(input_line, NULL, 10);
   
   return startup;
-
 }
 
+
+
+// return 1 if pm_mpi_open has been called successfully
 int pm_mpi_ok() {
   int ok = 0;
   
   if (-1 != rank) {
-    if (0 == rank) {
-      ok = (NULL != fpmc && first_time > 0.0 && monitor_cnt > 0);
+  
+    if (min_node_rank == rank) {
+      ok = (monitor_cnt > 0 && pm_get_num_opencounters() > 0);
+      
+      if (0 == rank) {
+        ok = (ok && fout);
+      }
     }
     else {
-      if (min_node_rank == rank) {
-        ok = (monitor_cnt > 0);
-      }
-      else {
-        ok = 1;
-      }
+      ok = (non_monitor_cnt > 0);
     }
+    
   }
   
   return ok;
 }
 
-// opens performance counter data file if rank zero
+
+
+// rank zero opens the output file
 // allow the calling rank to self-identify as a monitoring process
-// obtain the number of other monitors
-void pm_mpi_open(char* pmc_out_fn) {
+// each monitoring process obtains the number of monitors
+// call pm_mpi_monitor(-1,1)
+void pm_mpi_open(char* out_fn) {
   
   int node_name_len, nn_i, nn_m, node_num;
   char node_name[MPI_MAX_PROCESSOR_NAME];
   MPI_Comm mpi_comm_node;
-  MPI_Comm mpi_comm_monitor;
+  
+  
+  if (0 != open) {
+    return;
+  }
   
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     
   if (0 == rank) {
-    if (NULL != fpmc) {
-      fclose(fpmc);
-      fpmc = NULL;
+    if (fout) {
+      fclose(fout);
+      fout = NULL;
     }
     // open performance counter data file
-    if (NULL != pmc_out_fn) {
-      fpmc = fopen(pmc_out_fn, "w"); 
+    if (out_fn) {
+      fout = fopen(out_fn, "w"); 
     }
-    if (NULL == fpmc) {
-      fpmc = fopen("./PMC", "w");
+    if (!fout) {
+      fout = fopen("./pmc.out", "w");
     }
   }
 
@@ -311,36 +325,53 @@ void pm_mpi_open(char* pmc_out_fn) {
   // ...before each monitor rank obtains the total number of monitors
   if (min_node_rank == rank) {
     MPI_Comm_size(mpi_comm_monitor, &monitor_cnt);
-    // also open the power counter files
+  }
+  else {
+    // and other processes obtain the number of non-monitors
+    MPI_Comm_size(mpi_comm_monitor, &non_monitor_cnt);
+  }
+  
+  
+  if (min_node_rank == rank) {
+    // open the power counter files
     pm_init();
   }
   
-  if (0 == rank) {
-    // prepare to get elapsed time
-    first_time = MPI_Wtime();
+  
+  int ok = pm_mpi_ok(), all_ok = 0;
+  MPI_Allreduce(&ok, &all_ok, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD);
+  open = all_ok;
+  if (0 == open) {
+    pm_mpi_close();
   }
-  
-  // ensure that first_energy is initialised
-  pm_mpi_monitor(0);
-}
+  else {
+    // do initial monitoring call, which ends with MPI_Barrier
+    first_monitor = 1;
+    pm_mpi_monitor(-1, 1);
+  }
+} // end of pm_mpi_open() function
 
 
-// read and record performance counters if first rank on node
-void pm_mpi_monitor(int nstep) {
-  
-  int good_freshness, start_freshness, end_freshness;
-  unsigned long long int pmc_energy, tot_pmc_energy;
-  int pmc_power, tot_pmc_power;
-  double avg_pmc_power;
-  
-  if (!pm_mpi_ok()) {
-    pm_mpi_open(NULL);
-    if (!pm_mpi_ok()) {
-      return;
-    }
+
+// read counter values if first rank on node,
+// and output those values if rank zero
+void pm_mpi_monitor(int nstep, int sstep) {
+   
+  if (0 == open) {
+    return;
   }
   
   if (min_node_rank == rank) {
+    int good_freshness, start_freshness, end_freshness;
+    unsigned long long int pmc_energy, tot_pmc_energy;
+    int pmc_power, tot_pmc_power;
+    
+    // get time
+    double tm = MPI_Wtime();
+    if (1 == first_monitor) {
+      tm0 = tm;
+      first_monitor = 0;
+    }
     
     // read the point-in-time power and accumulated energy counters
     good_freshness = 0;
@@ -353,61 +384,61 @@ void pm_mpi_monitor(int nstep) {
         good_freshness = 1;
       }
     }
-    
-  }
-  else {
-    pmc_power = 0;
-    pmc_energy = 0;  
-  }
-    
-  MPI_Allreduce(&pmc_power, &tot_pmc_power, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(&pmc_energy, &tot_pmc_energy, 1, MPI_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+  
+    MPI_Allreduce(&pmc_power, &tot_pmc_power, 1, MPI_LONG, MPI_SUM, mpi_comm_monitor);
+    MPI_Allreduce(&pmc_energy, &tot_pmc_energy, 1, MPI_LONG_LONG, MPI_SUM, mpi_comm_monitor);
          
-  if (0 == rank) {
+    // output data
+    if (0 == rank) {
+      if (tm0 == tm) {
+        // this function is being called by pm_mpi_open()
+        entot0 = tot_pmc_energy;
         
-    if (0 == first_energy) {
-      // this function is being called by pm_mpi_open
-      first_energy = tot_pmc_energy;
-      if (NULL != fpmc) {
-        fprintf(fpmc, "pm_mpi_lib v%s: time (s), step, average power (W), energy used (J)\n", ver);
+        if (fout) {
+          fprintf(fout, "pm_mpi_lib v%s: time (s), step, substep, average power (W), energy used (J)\n", ver);
+        }
       }
-    }
-    else {
-      avg_pmc_power = 0.0;
-      if (monitor_cnt > 0) {
-        avg_pmc_power = ((double) tot_pmc_power)/((double) monitor_cnt);
-      }
-      
-      if (NULL != fpmc) { 
-        // update performance counter data file   
-        fprintf(fpmc, "%f %ld %f %ld\n", MPI_Wtime()-first_time, nstep, avg_pmc_power, tot_pmc_energy-first_energy);
+    
+      double avg_pmc_power = (monitor_cnt > 0) ? ((double) tot_pmc_power)/((double) monitor_cnt) : 0.0;
+        
+      if (fout) {   
+        // update counter data file   
+        fprintf(fout, "%f %d %d %f %ld\n", tm-tm0, nstep, sstep, avg_pmc_power, tot_pmc_energy-entot0); 
       }
     }
     
-  }
+  } // end of <if (min_node_rank == rank)> clause
   
   last_nstep = nstep;
   
-}
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+} // end of pm_mpi_monitor() function
 
 
-// close the file used to record performance counter data
+
+// close the file used to record counter data
 void pm_mpi_close() {
 
-  // do the last monitoring call
-  pm_mpi_monitor(last_nstep+1);
+  if (1 == open) {
+    // do the last monitoring call
+    pm_mpi_monitor(last_nstep+1, 1);
+  }
   
+  // if monitoring process (i.e., first process on node)    
   if (min_node_rank == rank) {
-    // close the power counter files
-    pm_close();
-  }
   
-  if (0 == rank) {
-    if (NULL != fpmc) {
-      // close performance counter data file
-      fclose(fpmc);
-      fpmc = NULL;
+    if (0 == rank) {
+      if (fout) {
+        // close performance counter data file
+        fclose(fout);
+        fout = NULL;
+      }
     }
-  }
+    
+  } 
   
-}
+  open = 0;
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+} // end of pm_mpi_close() function
