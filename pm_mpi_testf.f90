@@ -19,7 +19,7 @@ program pm_testf
   call pm_mpi_open(pmc_out_fn)
 
   do i=1,10
-    call pm_mpi_monitor(i)
+    call pm_mpi_monitor(i,1)
     call sleep(1)
   end do
 
