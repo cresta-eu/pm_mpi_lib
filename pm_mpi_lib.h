@@ -10,8 +10,8 @@
 #ifndef PM_MPI_LIB_H
 #define PM_MPI_LIB_H
 
-extern void pm_mpi_open(char* pmc_out_fn);
-extern void pm_mpi_monitor(int nstep);
+extern void pm_mpi_open(char* out_fn);
+extern void pm_mpi_monitor(int nstep, int sstep);
 extern void pm_mpi_close();
 
 #endif
