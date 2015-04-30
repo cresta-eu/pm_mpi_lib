@@ -10,16 +10,17 @@ module pm_mpi_lib
   public
   
   interface
-   subroutine pm_mpi_open(pmc_out_fn) bind(c,name='pm_mpi_open')
+   subroutine pm_mpi_open(out_fn) bind(c,name='pm_mpi_open')
     use, intrinsic :: iso_c_binding
-    character(c_char) :: pmc_out_fn(*)
+    character(c_char) :: out_fn(*)
    end subroutine pm_mpi_open
   end interface
 
   interface
-   subroutine pm_mpi_monitor(nstep) bind(c,name='pm_mpi_monitor')
+   subroutine pm_mpi_monitor(nstep,sstep) bind(c,name='pm_mpi_monitor')
     use, intrinsic :: iso_c_binding
     integer(c_int),value :: nstep
+    integer(c_int),value :: sstep
    end subroutine pm_mpi_monitor
   end interface
   
