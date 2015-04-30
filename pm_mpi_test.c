@@ -23,7 +23,7 @@ int main(int argc,char **argv){
   pm_mpi_open("./pmc_test.out");
   
   for (i=1; i<10; i++) {
-    pm_mpi_monitor(i);
+    pm_mpi_monitor(i,1);
     sleep(500000);
   }
   
