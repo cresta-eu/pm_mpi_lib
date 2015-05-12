@@ -2,6 +2,7 @@ pm_mpi_lib
 ==========
 
 This repository holds source code for the pm_mpi_lib library. There are also two small test harnesses that demonstrate how to call the library functions from Fortran and C codes. Furthermore, the test folder contains readme files that explain exactly how to integrate the pm_mpi_lib source with the DL_POLY (v4.05) and CP2K (v2.6.14482) source codes. Run make to build the pm_mpi_lib object and module (*.mod) files. The make also builds executables for two test harnesses written in C and Fortran.
+When building for gnu and intel environments run make CFLAGS_EXTRA="-std=c99".
 
 The following text describes the interface provided by the three functions of the pm_mpi_lib library.
 
