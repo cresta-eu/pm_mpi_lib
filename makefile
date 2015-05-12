@@ -1,6 +1,6 @@
 FC=ftn
 CC=cc
-CFLAGS = -fPIC
+CFLAGS = -std=c99 -fPIC
 
 all: pm_mpi_lib.o libpmmpi.a libpmmpi.so pm_mpi_test pm_mpi_testf
 
