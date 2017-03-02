@@ -6,7 +6,7 @@ When building for gnu and intel environments run make CFLAGS_EXTRA="-std=c99".
 
 The following text describes the interface provided by the three functions of the pm_mpi_lib library.
 
-void pm_mpi_open(char* out_fn)
+void pm_mpi_open(const char* out_fn)
 
 The parameter, out_fn, points to a null-terminated string that specifies the name of the file that will hold the PM counter data: a NULL parameter value will set the output file name to ./PMC. The open function also calls pm_mpi_monitor(-1,1) in order to determine a baseline for the cumulative energy. In addition, rank 0 establishes a temporal baseline by calling MPI_Wtime and also writes a one-line header to the output file, which gives the library version followed by the names of the data items that will appear in the subsequent lines.
 
@@ -16,7 +16,7 @@ void pm_mpi_close(void)
 This function calls pm_mpi_monitor(nstep+1,1), see below. All counter files are closed, then rank 0 closes the output file.
 
 
-void pm_mpi_monitor(int nstep, int sstep)
+void pm_mpi_monitor(const int nstep, const int sstep)
 
 The two parameters allow the client to label each set of counter values that are output by rank 0. The output file contains lines of space-separated fields. A description of each field follows (the C-language data type is given in square brackets).
 
