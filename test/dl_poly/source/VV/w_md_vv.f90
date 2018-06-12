@@ -7,11 +7,11 @@
   Call w_at_start_vv()
 
 ! START OF MOLECULAR DYNAMICS CALCULATIONS
-  Call pm_mpi_open(pmc_out_fn)
+  Call pm_mpi_initialise(pmc_out_fn)
   Do While ( (nstep < nstrun .or. (nstep == nstrun .and. newjob)) .and. &
              (timjob-timelp) > timcls )
              
-     Call pm_mpi_monitor(nstep)
+     Call pm_mpi_record(nstep,1,1,1)
      
 ! Apply impact
      
@@ -53,9 +53,9 @@
      End If ! DO THAT ONLY IF 0<=nstep<nstrun AND FORCES ARE PRESENT (levcfg=2)
 
 ! Evaluate forces
-     Call pm_mpi_monitor(nstep)
+     Call pm_mpi_record(nstep,2,1,0)
      Call w_calculate_forces()
-     Call pm_mpi_monitor(nstep)
+     Call pm_mpi_record(nstep,3,1,0)
      
 ! Calculate physical quantities, collect statistics and report at t=0
 
@@ -93,7 +93,7 @@
            chit,cint,chip,eta,strcon,strpmf,stress)
 
      End If ! DO THAT ONLY IF 0<nstep<=nstrun AND THIS IS AN OLD JOB (newjob=.false.)
-     Call pm_mpi_monitor(nstep)
+     Call pm_mpi_monitor(nstep,4,1,0)
      
 1000 Continue ! Escape forces evaluation at t=0 when nstep=nstrun=0 and newjob=.false.
 
@@ -109,10 +109,10 @@
 
      If (levcfg == 1) levcfg=2
 
-     Call pm_mpi_monitor(nstep)
+     Call pm_mpi_monitor(nstep,5,1,0)
      
   End Do
 
-  Call pm_mpi_close()
+  Call pm_mpi_finalise()
   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  W_MD_VV INCLUSION  !!!!!!!!!!!!!!!!!!!!!!

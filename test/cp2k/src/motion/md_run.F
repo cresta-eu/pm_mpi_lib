@@ -520,12 +520,12 @@ CONTAINS
 ! if we need the initial kinetic energy for Hybrid Monte Carlo
     IF(PRESENT(hmc_ekin)) hmc_ekin%initial_ekin=md_ener%ekin
 
-    CALL pm_mpi_open(pmc_out_fn)
+    CALL pm_mpi_initialise(pmc_out_fn)
     
     ! Real MD Loop
     DO istep=1, simpar%nsteps, md_stride
        
-       CALL pm_mpi_monitor(istep)
+       CALL pm_mpi_record(istep,1,1,1)
        
        ! Increase counters
        itimes = itimes + 1
@@ -549,7 +549,7 @@ CONTAINS
        ! Velocity Verlet Integrator
        CALL velocity_verlet(md_env,globenv,error)
 
-       CALL pm_mpi_monitor(istep)
+       CALL pm_mpi_record(istep,1,1,0)
        
        ! Close Shake output if requested...
        CALL cp_print_key_finished_output(simpar%info_constraint, logger,&
@@ -587,7 +587,7 @@ CONTAINS
           EXIT
        END IF
 
-       CALL pm_mpi_monitor(istep)
+       CALL pm_mpi_record(istep,3,1,0)
        
        IF(simpar%ensemble /= reftraj_ensemble) THEN
           CALL md_energy(md_env, md_ener, error)
@@ -607,11 +607,11 @@ CONTAINS
           CALL write_output_reftraj(md_env,error=error)
        END IF
        
-       CALL pm_mpi_monitor(istep)
+       CALL pm_mpi_record(istep,4,1,0)
        
     END DO
 
-    CALL pm_mpi_close()
+    CALL pm_mpi_finalise()
     
 ! if we need the final kinetic energy for Hybrid Monte Carlo
     IF(PRESENT(hmc_ekin)) hmc_ekin%final_ekin=md_ener%ekin

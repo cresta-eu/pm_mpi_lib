@@ -18,20 +18,20 @@ program pm_testf
   
   implicit none
  
-  integer :: ierr, i
+  integer :: ierr, i, res
   integer :: comm, rank
   character (len=13) :: pmc_out_fn = "pmc_test.out"//CHAR(0)
   
   call MPI_Init(ierr)
   
-  call pm_mpi_open(pmc_out_fn)
+  call pm_mpi_initialise(pmc_out_fn)
 
   do i=1,10
-    call pm_mpi_monitor(i,1)
+    res = pm_mpi_record(1,i,1,1)
     call sleep(1)
   end do
 
-  call pm_mpi_close()
+  call pm_mpi_finalise()
 
   call MPI_Finalize(ierr)
  

@@ -26,14 +26,14 @@ int main(int argc,char **argv){
   
   MPI_Init(NULL, NULL);
   
-  pm_mpi_open("./pmc_test.out");
+  pm_mpi_initialise("./pmc_test.out");
   
   for (i=1; i<10; i++) {
-    pm_mpi_monitor(i,1);
+    pm_mpi_record(1,i,1,1);
     sleep(500000);
   }
   
-  pm_mpi_close();
+  pm_mpi_finalise();
   
   MPI_Finalize();
 
