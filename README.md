@@ -16,7 +16,7 @@ void pm_mpi_finalise(void)
 This function calls pm_mpi_record(nstep+1,1,1,0), see below. All counter files are closed, then rank 0 closes the output file.
 
 
-void pm_mpi_monitor(const int nstep, const int sstep, const int initial_sync, const int initial_rec)
+void pm_mpi_record(const int nstep, const int sstep, const int initial_sync, const int initial_rec)
 
 The first two parameters (nstep and sstep) allow the client to label each set of counter values that are output by rank 0.
 If initial_sync is true MPI_Barrier is called before reading takes place.
