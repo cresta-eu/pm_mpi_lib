@@ -9,13 +9,13 @@ The following text describes the interface provided by the three functions of th
 void pm_mpi_initialise(const char* out_fn)
 ```
 
-The parameter, `out_fn`, points to a null-terminated string that specifies the name of the file that will hold the PM counter data: a NULL parameter value will set the output file name to `pm_log.out`. The initialise function also calls `pm_mpi_record(-1,1,1,1)` in order to determine a baseline for the cumulative energy. In addition, rank 0 establishes a temporal baseline by calling `MPI_Wtime` and also writes a one-line header to the output file, which gives the library version followed by the names of the data items that will appear in the subsequent lines.
+The parameter, `out_fn`, points to a null-terminated string that specifies the name of the file that will hold the PM counter data: a NULL parameter value will set the output file name to `pm_log.out`. The initialise function also calls `pm_mpi_record(-1,1,1,1)` in order to determine a baseline for the cumulative energy. In addition, rank 0 establishes a temporal baseline by calling `MPI_Wtime` and also writes a one-line header to the output file, which gives the library version followed by the names of the data items that will appear on subsequent lines.
 
 ```bash
 void pm_mpi_finalise(void)
 ```
 
-The finalise function calls `pm_mpi_record(nstep+1,1,1,0)` (described below). All counter files are closed, then rank 0 closes the output file.
+The finalise function calls `pm_mpi_record(nstep,1,1,0)` (described below). All counter files are closed, then rank 0 closes the output file.
 
 ```bash
 void pm_mpi_record(const int nstep, const int sstep, const int initial_sync, const int initial_rec)
