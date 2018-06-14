@@ -28,8 +28,8 @@ Note, `initial_rec` is only used when `initial_sync` is true.
 
 The output file contains lines of space-separated fields. A description of each field follows (the C-language data type is given in square brackets).
 
-**Time [double]**: the time as measured by `MPI_Wtime` (called by rank zero) that has elapsed since the last call to `pm_mpi_open`.
-**Step [int]**: a simple numerical label: e.g., the iteration count, assuming `pm_mpi_monitor` is being called from within a loop.
-**Sub-step [int]**: another numerical label that might be required if there is more than one monitor call within the same loop.
-**Point-in-time power [double]**: the average power reading across all assigned compute nodes.
+**Time [double]**: the time as measured by `MPI_Wtime` (called by rank zero) that has elapsed since the last call to `pm_mpi_open`.<br>
+**Step [int]**: a simple numerical label: e.g., the iteration count, assuming `pm_mpi_monitor` is being called from within a loop.<br>
+**Sub-step [int]**: another numerical label that might be required if there is more than one monitor call within the same loop.<br>
+**Point-in-time power [double]**: the average power reading across all assigned compute nodes.<br>
 **Energy [unsigned long long int]**: the energy used by all assigned compute nodes since the last call to `pm_mpi_open`.
