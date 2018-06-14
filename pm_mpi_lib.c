@@ -191,7 +191,7 @@ int pm_get_node_number(void) {
 }
 
 
-// return true if pm_mpi_open has been called successfully
+// return true if pm_mpi_initialise has been called successfully
 int pm_mpi_ok(void) {
     int ok = 0;
   
@@ -341,7 +341,7 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
     // output data
     if (0 == rank) {
         if (tm0 == tm) {
-            // this function is being called by pm_mpi_open()
+            // this function is being called by pm_mpi_initialise()
             entot0 = tot_pmc_energy;
         
             if (NULL != log_fp) {
@@ -351,7 +351,7 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
 
         double avg_pmc_power = (monitor_cnt > 0) ? ((double) tot_pmc_power)/((double) monitor_cnt) : 0.0;
         long int dif_pmc_energy = tot_pmc_energy - entot0;
-        
+	
         if (NULL != log_fp) {   
             // update counter data file   
             fprintf(log_fp, "%f %d %d %f %ld\n", tm-tm0, nstep, sstep, avg_pmc_power, dif_pmc_energy); 
