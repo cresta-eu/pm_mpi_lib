@@ -11,7 +11,7 @@
   Do While ( (nstep < nstrun .or. (nstep == nstrun .and. newjob)) .and. &
              (timjob-timelp) > timcls )
              
-     Call pm_mpi_record(nstep,1,1,1)
+     pm_res = pm_mpi_record(nstep,1,1,1)
      
 ! Apply impact
      
@@ -53,9 +53,9 @@
      End If ! DO THAT ONLY IF 0<=nstep<nstrun AND FORCES ARE PRESENT (levcfg=2)
 
 ! Evaluate forces
-     Call pm_mpi_record(nstep,2,1,0)
+     pm_res = pm_mpi_record(nstep,2,1,0)
      Call w_calculate_forces()
-     Call pm_mpi_record(nstep,3,1,0)
+     pm_res = pm_mpi_record(nstep,3,1,0)
      
 ! Calculate physical quantities, collect statistics and report at t=0
 
@@ -93,7 +93,7 @@
            chit,cint,chip,eta,strcon,strpmf,stress)
 
      End If ! DO THAT ONLY IF 0<nstep<=nstrun AND THIS IS AN OLD JOB (newjob=.false.)
-     Call pm_mpi_monitor(nstep,4,1,0)
+     pm_res = pm_mpi_monitor(nstep,4,1,0)
      
 1000 Continue ! Escape forces evaluation at t=0 when nstep=nstrun=0 and newjob=.false.
 
@@ -109,7 +109,7 @@
 
      If (levcfg == 1) levcfg=2
 
-     Call pm_mpi_monitor(nstep,5,1,0)
+     pm_res = pm_mpi_monitor(nstep,5,1,0)
      
   End Do
 

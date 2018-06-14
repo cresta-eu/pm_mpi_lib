@@ -203,7 +203,8 @@ CONTAINS
 
     CHARACTER(LEN=default_string_length)     :: my_act, my_pos
     CHARACTER(LEN=15)                        :: pmc_out_fn = "pmc_qs_mol.out"//CHAR(0)
-      
+    INTEGER                                  :: pm_res
+  
     INTEGER                                  :: handle, i, istep, &
                                                 md_stride, &
                                                 run_type_id, rank, ierror
@@ -525,7 +526,7 @@ CONTAINS
     ! Real MD Loop
     DO istep=1, simpar%nsteps, md_stride
        
-       CALL pm_mpi_record(istep,1,1,1)
+       pm_res = pm_mpi_record(istep,1,1,0)
        
        ! Increase counters
        itimes = itimes + 1
@@ -549,7 +550,7 @@ CONTAINS
        ! Velocity Verlet Integrator
        CALL velocity_verlet(md_env,globenv,error)
 
-       CALL pm_mpi_record(istep,1,1,0)
+       pm_res = pm_mpi_record(istep,2,0,0)
        
        ! Close Shake output if requested...
        CALL cp_print_key_finished_output(simpar%info_constraint, logger,&
@@ -587,7 +588,7 @@ CONTAINS
           EXIT
        END IF
 
-       CALL pm_mpi_record(istep,3,1,0)
+       pm_res = pm_mpi_record(istep,3,0,0)
        
        IF(simpar%ensemble /= reftraj_ensemble) THEN
           CALL md_energy(md_env, md_ener, error)
@@ -607,7 +608,7 @@ CONTAINS
           CALL write_output_reftraj(md_env,error=error)
        END IF
        
-       CALL pm_mpi_record(istep,4,1,0)
+       pm_res = pm_mpi_record(istep,4,0,0)
        
     END DO
 

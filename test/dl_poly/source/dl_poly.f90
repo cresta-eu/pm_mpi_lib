@@ -127,6 +127,7 @@ Program dl_poly
   Character( Len = 10 ) :: c_out
 
   Character( Len = 16 ) :: pmc_out_fn = "pmc_w_md_vv.out"//CHAR(0)
+  Integer               :: pm_res
   
 ! lines and page used for printing controls
 
