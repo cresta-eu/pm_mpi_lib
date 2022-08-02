@@ -11,7 +11,7 @@ SHELL=/bin/sh
 .SUFFIXES:
 .SUFFIXES: .f90 .c .o
 
-BINROOT=/work/$(BINPATH)
+BINROOT=$(BINPATH)
 
 
 EX=DLPOLY.Z
@@ -321,26 +321,8 @@ BGP:
 	FCFLAGS="-O3 -qhot -qarch=450d -qtune=450 -qmaxmem=128000" \
 	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
 
-#================== CRAY XT3/6 pgi compilers (default) ===============
-archer:
-	$(MAKE) LD="ftn -o" \
-	LDFLAGS="-O3" \
-	FC="ftn -c" \
-	FCFLAGS="-O3" \
-	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
-
-#================== CRAY XT3/6 pgi compilers - DEBUG =================
-archer-pgi-debug:
-	$(MAKE) LD="ftn -o" \
-	LDFLAGS="-O0 -W -Wall -pedantic -std=f2003 -g -fbounds-check \
-	         -fbacktrace -finit-real=nan -finit-integer=999999" \
-	FC="ftn -c" \
-	FCFLAGS="-O0 -W -Wall -pedantic -std=f2003 -g -fbounds-check \
-	         -fbacktrace -finit-real=nan -finit-integer=999999" \
-	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
-
-#================== CRAY XT3/6 gnu compilers =========================
-archer-gnu:
+#================== HPE CRAY EX gnu compilers =========================
+archer2-gnu:
 	$(MAKE) LD="$(LPREP) ftn -o" \
 	LDFLAGS="-O3 -Wall -pedantic -g" \
 	FC="$(CPREP) ftn -c" \
@@ -349,8 +331,8 @@ archer-gnu:
 	CC="$(CPREP) cc" \
 	CCFLAGS=""
 
-#================== CRAY XT3/6 gnu compilers - DEBUG =================
-archer-gnu-debug:
+#================== HPE CRAY EX gnu compilers - DEBUG =================
+archer2-gnu-debug:
 	$(MAKE) LD="ftn -o" \
 	LDFLAGS="-O3 -Wall -Wextra -pedantic -g -fbounds-check -fbacktrace \
 	         -finit-integer=-9999 -finit-real=nan -std=f2003 \
@@ -361,8 +343,8 @@ archer-gnu-debug:
 	         -ffpe-trap=invalid,zero,overflow -fdump-core" \
 	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
 
-#================== CRAY XT3/6 cray compilers ========================
-archer-cray:
+#================== HPE CRAY EX cray compilers ========================
+archer2-cray:
 	$(MAKE) LD="$(LPREP) ftn -o" \
 	LDFLAGS="-O3 -en" \
 	FC="$(CPREP) ftn -c" \
@@ -371,48 +353,16 @@ archer-cray:
 	CC="$(CPREP) cc" \
 	CCFLAGS=""
 
-#================== CRAY XT3/6 cray compilers - DEBUG ================
-archer-cray-debug:
+#================== HPE CRAY EX cray compilers - DEBUG ================
+archer2-cray-debug:
 	$(MAKE) LD="ftn -o" \
 	LDFLAGS="-O3 -en -G2" \
 	FC="ftn -c" \
 	FCFLAGS="-O3 -en -G2" \
 	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
 
-#================== CRAY XT3/6 pathscale compilers ===================
-archer-pathscale:
-	$(MAKE) LD="ftn -o" \
-	LDFLAGS="-byteswapio -O3" \
-	FC="ftn -c" \
-	FCFLAGS="-byteswapio -O3" \
-	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
-
-#================== CRAY XT3/6 pathscale compilers - DEBUG ===========
-archer-pathscale-debug:
-	$(MAKE) LD="ftn -o" \
-	LDFLAGS="-byteswapio -O0 -g -ffortran-bounds-check" \
-	FC="ftn -c" \
-	FCFLAGS="-byteswapio -O0 -g -ffortran-bounds-check" \
-	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
-
-#================== CRAY X2 ==========================================
-archer-X2:
-	$(MAKE) LD="ftn -o" \
-	LDFLAGS="-O3 -Ofp3 -Ocache2 -rm " \
-	FC="ftn -c" \
-	FCFLAGS="-O3 -Ofp3 -Ocache2 -rm " \
-	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
-
-#================== CRAY X2 - DEBUG ==================================
-archer-X2-debug:
-	$(MAKE) LD="ftn -o" \
-	LDFLAGS="-G0 -O0 -rm " \
-	FC="ftn -c" \
-	FCFLAGS="-G0 -O0 -rm " \
-	EX=$(EX) BINROOT=$(BINROOT) $(TYPE)
-
-#================== CRAY XT3/6 intel compilers =======================
-archer-intel:
+#================== HPE CRAY EX aocc compilers =======================
+archer2-aocc:
 	$(MAKE) LD="$(LPREP) ftn -o" \
 	LDFLAGS="-O3" \
 	FC="$(CPREP) ftn -c" \

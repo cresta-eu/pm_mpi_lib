@@ -4,11 +4,11 @@ within the cp2k directory.
 
 The following commands are required to build cp2k so that it is based on mixed mode MPI/OpenMP.
 
+module restore
 module swap PrgEnv-cray PrgEnv-gnu
 module load fftw
-module swap cray-mpich cray-mpich/7.0.4
 
-make -j 16 ARCH=ARCHER VERSION=psmp
+make -j 16 ARCH=ARCHER2 VERSION=psmp
 
-The executable is written to ./exe/ARCHER/cp2k.psmp and must be copied to the work area together with the necessary input data (see ./data/) before
+The executable is written to ./exe/ARCHER2/cp2k.psmp and must be copied to the work area together with the necessary input data (see ./data/) before
 a cp2k job can be submitted.
