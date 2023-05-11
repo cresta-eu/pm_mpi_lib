@@ -1,5 +1,5 @@
 /* 
-  Copyright (c) 2017 The University of Edinburgh.
+  Copyright (c) 2023 The University of Edinburgh.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include "pm_mpi_lib.h"
 
 
-static const char ver[] = "4.3.0";
+static const char ver[] = "4.4.0";
 
 #define PM_RECORD_OK                 0
 #define PM_RECORD_UNINITIALISED      1
@@ -39,11 +39,18 @@ static const char* cnt_fname[] = {
   "freshness", /* The freshness counter MUST be first in the list */
   "power",
   "energy",
+  "cpu_power",
+  "cpu_energy",
+  "memory_power",
+  "memory_energy",
+  "cpu0_temp",
+  "cpu1_temp",
   "accel_power",
   "accel_energy",
   "startup",
   "power_cap",
-  "accel_power_cap"
+  "accel_power_cap",
+  "raw_scan_hz"
 };
 
 static int rank = -1;
@@ -57,6 +64,8 @@ static FILE* cnt_fp[PM_NCOUNTERS];
 static FILE* log_fp = NULL;
 static double tm0 = 0.0;
 static long int entot0 = 0.0;
+static long int cpu_entot0 = 0.0;
+static long int mem_entot0 = 0.0;
 static int last_nstep = 0;
 static long int init_startup = 0;
 
@@ -303,8 +312,12 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
     }
 
     long int start_freshness, end_freshness;
-    long int pmc_energy, tot_pmc_energy;
     long int pmc_power, tot_pmc_power;
+    long int pmc_cpu_power, tot_pmc_cpu_power;
+    long int pmc_mem_power, tot_pmc_mem_power;
+    long int pmc_energy, tot_pmc_energy;
+    long int pmc_cpu_energy, tot_pmc_cpu_energy;
+    long int pmc_mem_energy, tot_pmc_mem_energy;
     
     // get time
     double tm = MPI_Wtime();
@@ -318,8 +331,15 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
     long int current_startup = 0;
     while (0 == fresh) {
         start_freshness = pm_get_counter_value(PM_COUNTER_FRESHNESS);
-        pmc_power = pm_get_counter_value(PM_COUNTER_POWER);
+        
+	pmc_power = pm_get_counter_value(PM_COUNTER_POWER);
+	pmc_cpu_power = pm_get_counter_value(PM_COUNTER_CPU_POWER);
+        pmc_mem_power = pm_get_counter_value(PM_COUNTER_MEMORY_POWER);
+
         pmc_energy = pm_get_counter_value(PM_COUNTER_ENERGY);
+        pmc_cpu_energy = pm_get_counter_value(PM_COUNTER_CPU_ENERGY);
+        pmc_mem_energy = pm_get_counter_value(PM_COUNTER_MEMORY_ENERGY);
+	
 	current_startup = pm_get_counter_value(PM_COUNTER_STARTUP);
         end_freshness = pm_get_counter_value(PM_COUNTER_FRESHNESS);
         fresh = (end_freshness == start_freshness);
@@ -336,25 +356,37 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
     }
     
     MPI_Reduce(&pmc_power, &tot_pmc_power, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
+    MPI_Reduce(&pmc_cpu_power, &tot_pmc_cpu_power, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
+    MPI_Reduce(&pmc_mem_power, &tot_pmc_mem_power, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
+
     MPI_Reduce(&pmc_energy, &tot_pmc_energy, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
-         		
+    MPI_Reduce(&pmc_cpu_energy, &tot_pmc_cpu_energy, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
+    MPI_Reduce(&pmc_mem_energy, &tot_pmc_mem_energy, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
+
     // output data
     if (0 == rank) {
         if (tm0 == tm) {
             // this function is being called by pm_mpi_initialise()
             entot0 = tot_pmc_energy;
-        
+            cpu_entot0 = tot_pmc_cpu_energy;
+            mem_entot0 = tot_pmc_mem_energy;
+
             if (NULL != log_fp) {
-                fprintf(log_fp, "pm_mpi_lib v%s: time (s), step, substep, average power (W), energy used (J)\n", ver);
+                fprintf(log_fp, "pm_mpi_lib v%s: time (s), step, substep, power avg (W), cpu power avg (W), mem power avg (W), energy (J), cpu energy (J), mem energy (J)\n", ver);
             }
         }
 
         double avg_pmc_power = (monitor_cnt > 0) ? ((double) tot_pmc_power)/((double) monitor_cnt) : 0.0;
-        long int dif_pmc_energy = tot_pmc_energy - entot0;
-	
+        double avg_pmc_cpu_power = (monitor_cnt > 0) ? ((double) tot_pmc_cpu_power)/((double) monitor_cnt) : 0.0;
+	double avg_pmc_mem_power = (monitor_cnt > 0) ? ((double) tot_pmc_mem_power)/((double) monitor_cnt) : 0.0;
+
+	long int dif_pmc_energy = tot_pmc_energy - entot0;
+	long int dif_pmc_cpu_energy = tot_pmc_cpu_energy - cpu_entot0;
+	long int dif_pmc_mem_energy = tot_pmc_mem_energy - mem_entot0;
+
         if (NULL != log_fp) {   
             // update counter data file   
-            fprintf(log_fp, "%f %d %d %f %ld\n", tm-tm0, nstep, sstep, avg_pmc_power, dif_pmc_energy); 
+            fprintf(log_fp, "%f %d %d %f %f %f %ld %ld %ld\n", tm-tm0, nstep, sstep, avg_pmc_power, avg_pmc_cpu_power, avg_pmc_mem_power, dif_pmc_energy, dif_pmc_cpu_energy, dif_pmc_mem_energy); 
         }
     } 
   
