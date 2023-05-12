@@ -84,10 +84,13 @@ void pm_open_counter_files(int node_num) {
     unsigned int max_fname_len = MAX_FPATH_LEN - strlen(sys_pm_cnt_dir);
     struct stat sb;
 
-    node_is_water_cooled = (stat(sys_pm_cnt_dir, &sb) == 0 || S_ISDIR(sb.st_mode));
+    node_is_water_cooled = (stat(sys_pm_cnt_dir, &sb) == 0 && S_ISDIR(sb.st_mode));
     node_is_air_cooled = !node_is_water_cooled;
-    if (node_is_air_cooled) {
-        fprintf(stderr, "pm_mpi_lib: detected air-cooled node %d!\n", node_num);
+    if (node_is_water_cooled) {
+        fprintf(stderr, "pm_mpi_lib: rank %d detected water-cooled node %d!\n", rank, node_num);
+    }
+    else {
+        fprintf(stderr, "pm_mpi_lib: rank %d detected air-cooled node %d!\n", rank, node_num);
 	return;
     }
 
