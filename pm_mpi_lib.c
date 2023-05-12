@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
@@ -24,7 +25,7 @@
 #include "pm_mpi_lib.h"
 
 
-static const char ver[] = "4.4.0";
+static const char ver[] = "5.0.0";
 
 #define PM_RECORD_OK                 0
 #define PM_RECORD_UNINITIALISED      1
@@ -59,13 +60,11 @@ static int monitor_cnt = 0;
 static int non_monitor_cnt = 0;
 static int first_record = 0;
 static int mpi_comm_monitor = 0;
+static int node_is_air_cooled = 0;
+static int node_is_water_cooled = 0;
 
 static FILE* cnt_fp[PM_NCOUNTERS];
 static FILE* log_fp = NULL;
-static double tm0 = 0.0;
-static long int entot0 = 0.0;
-static long int cpu_entot0 = 0.0;
-static long int mem_entot0 = 0.0;
 static int last_nstep = 0;
 static long int init_startup = 0;
 
@@ -80,9 +79,17 @@ int pm_is_accelerator_counter(const unsigned int i) {
   	  i == PM_COUNTER_ACCEL_POWER_CAP);
 }
 
-void pm_open_counter_files(void) {
+void pm_open_counter_files(int node_num) {
     char cnt_fpath[MAX_FPATH_LEN];
     unsigned int max_fname_len = MAX_FPATH_LEN - strlen(sys_pm_cnt_dir);
+    struct stat sb;
+
+    node_is_water_cooled = (stat(sys_pm_cnt_dir, &sb) == 0 || S_ISDIR(sb.st_mode));
+    node_is_air_cooled = !node_is_water_cooled;
+    if (node_is_air_cooled) {
+        fprintf(stderr, "pm_mpi_lib: detected air-cooled node %d!\n", node_num);
+	return;
+    }
 
     strcpy(cnt_fpath, sys_pm_cnt_dir);
     strncat(cnt_fpath, cnt_fname[PM_COUNTER_FRESHNESS], max_fname_len);
@@ -207,10 +214,23 @@ int pm_mpi_ok(void) {
     if (-1 != rank) {
         if (min_node_rank == rank) {
             ok = (monitor_cnt > 0);
-            ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_FRESHNESS]);
-            ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_POWER]);
-            ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_ENERGY]);
-      				
+
+	    if (node_is_water_cooled) {
+                ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_FRESHNESS]);
+                ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_STARTUP]);
+
+	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_POWER]);
+	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU_POWER]);
+	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_MEMORY_POWER]);
+
+	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_ENERGY]);
+                ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU_ENERGY]);
+	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_MEMORY_ENERGY]);
+
+	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU0_TEMP]);
+	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU1_TEMP]);
+            }
+
             if (0 == rank) {
                 ok = (0 != ok && NULL != log_fp);
             }
@@ -282,8 +302,10 @@ void pm_mpi_initialise(const char* log_fpath) {
 
     system_error = 0;
     if (min_node_rank == rank) {
-        pm_open_counter_files();
-        init_startup = pm_get_counter_value(PM_COUNTER_STARTUP);
+        pm_open_counter_files(node_num);
+	if (node_is_water_cooled) {
+            init_startup = pm_get_counter_value(PM_COUNTER_STARTUP);
+	}
     }
   
     int ok = pm_mpi_ok() && (0 == system_error);
@@ -307,42 +329,40 @@ void pm_mpi_initialise(const char* log_fpath) {
 // and output those values if rank zero
 unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
   
-    if (min_node_rank != rank) {
+    if (min_node_rank != rank || node_is_air_cooled) {
         return PM_RECORD_OK;
     }
 
     long int start_freshness, end_freshness;
-    long int pmc_power, tot_pmc_power;
-    long int pmc_cpu_power, tot_pmc_cpu_power;
-    long int pmc_mem_power, tot_pmc_mem_power;
-    long int pmc_energy, tot_pmc_energy;
-    long int pmc_cpu_energy, tot_pmc_cpu_energy;
-    long int pmc_mem_energy, tot_pmc_mem_energy;
+    long int pmc_node_power, pmc_cpu_power, pmc_mem_power;
+    long int pmc_node_energy, pmc_cpu_energy, pmc_mem_energy;
+    long int pmc_cpu0_temp, pmc_cpu1_temp;
     
     // get time
     double tm = MPI_Wtime();
-    if (0 != first_record) {
-        tm0 = tm;
-        first_record = 0;
-    }
     
-    // read the point-in-time power and accumulated energy counters
+    // read the point-in-time power and temperature and accumulated energy counters
     int fresh = 0;
     long int current_startup = 0;
     while (0 == fresh) {
         start_freshness = pm_get_counter_value(PM_COUNTER_FRESHNESS);
         
-	pmc_power = pm_get_counter_value(PM_COUNTER_POWER);
-	pmc_cpu_power = pm_get_counter_value(PM_COUNTER_CPU_POWER);
-        pmc_mem_power = pm_get_counter_value(PM_COUNTER_MEMORY_POWER);
+	pmc_node_power  = pm_get_counter_value(PM_COUNTER_POWER);
+	pmc_cpu_power   = pm_get_counter_value(PM_COUNTER_CPU_POWER);
+        pmc_mem_power   = pm_get_counter_value(PM_COUNTER_MEMORY_POWER);
 
-        pmc_energy = pm_get_counter_value(PM_COUNTER_ENERGY);
-        pmc_cpu_energy = pm_get_counter_value(PM_COUNTER_CPU_ENERGY);
-        pmc_mem_energy = pm_get_counter_value(PM_COUNTER_MEMORY_ENERGY);
-	
+        pmc_node_energy = pm_get_counter_value(PM_COUNTER_ENERGY);
+        pmc_cpu_energy  = pm_get_counter_value(PM_COUNTER_CPU_ENERGY);
+        pmc_mem_energy  = pm_get_counter_value(PM_COUNTER_MEMORY_ENERGY);
+
+        pmc_cpu0_temp   = pm_get_counter_value(PM_COUNTER_CPU0_TEMP);
+        pmc_cpu1_temp   = pm_get_counter_value(PM_COUNTER_CPU1_TEMP);
+
 	current_startup = pm_get_counter_value(PM_COUNTER_STARTUP);
-        end_freshness = pm_get_counter_value(PM_COUNTER_FRESHNESS);
-        fresh = (end_freshness == start_freshness);
+        
+	end_freshness   = pm_get_counter_value(PM_COUNTER_FRESHNESS);
+        
+	fresh = (end_freshness == start_freshness);
 
 	if (0 != system_error) {
 	    system_error = 0;
@@ -355,38 +375,23 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
 	return PM_RECORD_BLADE_RESTART;
     }
     
-    MPI_Reduce(&pmc_power, &tot_pmc_power, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
-    MPI_Reduce(&pmc_cpu_power, &tot_pmc_cpu_power, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
-    MPI_Reduce(&pmc_mem_power, &tot_pmc_mem_power, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
-
-    MPI_Reduce(&pmc_energy, &tot_pmc_energy, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
-    MPI_Reduce(&pmc_cpu_energy, &tot_pmc_cpu_energy, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
-    MPI_Reduce(&pmc_mem_energy, &tot_pmc_mem_energy, 1, MPI_LONG, MPI_SUM, 0, mpi_comm_monitor);
-
     // output data
     if (0 == rank) {
-        if (tm0 == tm) {
+        if (0 != first_record) {
             // this function is being called by pm_mpi_initialise()
-            entot0 = tot_pmc_energy;
-            cpu_entot0 = tot_pmc_cpu_energy;
-            mem_entot0 = tot_pmc_mem_energy;
-
             if (NULL != log_fp) {
-                fprintf(log_fp, "pm_mpi_lib v%s: time (s), step, substep, power avg (W), cpu power avg (W), mem power avg (W), energy (J), cpu energy (J), mem energy (J)\n", ver);
+                fprintf(log_fp, "pm_mpi_lib v%s: time (s), rank, step, substep, node (W), cpu (W), mem (W), node (J), cpu (J), mem (J), cpu0 (C), cpu1 (C)\n", ver);
             }
+	    first_record = 0;
         }
-
-        double avg_pmc_power = (monitor_cnt > 0) ? ((double) tot_pmc_power)/((double) monitor_cnt) : 0.0;
-        double avg_pmc_cpu_power = (monitor_cnt > 0) ? ((double) tot_pmc_cpu_power)/((double) monitor_cnt) : 0.0;
-	double avg_pmc_mem_power = (monitor_cnt > 0) ? ((double) tot_pmc_mem_power)/((double) monitor_cnt) : 0.0;
-
-	long int dif_pmc_energy = tot_pmc_energy - entot0;
-	long int dif_pmc_cpu_energy = tot_pmc_cpu_energy - cpu_entot0;
-	long int dif_pmc_mem_energy = tot_pmc_mem_energy - mem_entot0;
 
         if (NULL != log_fp) {   
             // update counter data file   
-            fprintf(log_fp, "%f %d %d %f %f %f %ld %ld %ld\n", tm-tm0, nstep, sstep, avg_pmc_power, avg_pmc_cpu_power, avg_pmc_mem_power, dif_pmc_energy, dif_pmc_cpu_energy, dif_pmc_mem_energy); 
+            fprintf(log_fp, "%f %d %d %d %ld %ld %ld %ld %ld %ld %ld %ld\n",
+			    tm, rank, nstep, sstep,
+			    pmc_node_power, pmc_cpu_power, pmc_mem_power,
+			    pmc_node_energy, pmc_cpu_energy, pmc_mem_energy,
+			    pmc_cpu0_temp, pmc_cpu1_temp); 
         }
     } 
   
