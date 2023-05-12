@@ -20,13 +20,13 @@
 #include <mpi.h>
 #include "pm_mpi_lib.h"
 
-int main(int argc,char **argv){
+int main(int argc,char **argv) {
   
   int i, ierr, rank, comm;
   
   MPI_Init(NULL, NULL);
   
-  pm_mpi_initialise("./pmc_test.out");
+  pm_mpi_initialise("./pmc/log.out");
   
   for (i=1; i<10; i++) {
     pm_mpi_record(1,i,1,1);

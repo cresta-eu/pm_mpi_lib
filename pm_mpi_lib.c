@@ -35,8 +35,12 @@ static const char ver[] = "5.0.0";
 #define MAX_FPATH_LEN 128
 #define MAX_FLINE_LEN 128
 
-static const char sys_pm_cnt_dir[] = "/sys/cray/pm_counters/";
-static const char* cnt_fname[] = {
+#define PMC_CNTR_CNT    8
+#define PMC_FIELD_CNT  12
+
+
+static const char sys_pmc_dir[] = "/sys/cray/pm_counters/";
+static const char* cntr_fname[] = {
   "freshness", /* The freshness counter MUST be first in the list */
   "power",
   "energy",
@@ -55,18 +59,26 @@ static const char* cnt_fname[] = {
 };
 
 static int rank = -1;
+
 static int min_node_rank = 0;
 static int monitor_cnt = 0;
 static int non_monitor_cnt = 0;
-static int first_record = 0;
 static int mpi_comm_monitor = 0;
-static int node_is_air_cooled = 0;
+
 static int node_is_water_cooled = 0;
 
-static FILE* cnt_fp[PM_NCOUNTERS];
-static FILE* log_fp = NULL;
+static FILE* cntr_fp[PM_NCOUNTERS];
 static int last_nstep = 0;
 static long int init_startup = 0;
+
+static int pmc_index[PMC_CNTR_CNT] =
+    { PM_COUNTER_POWER, PM_COUNTER_CPU_POWER, PM_COUNTER_MEMORY_POWER,
+      PM_COUNTER_ENERGY, PM_COUNTER_CPU_ENERGY, PM_COUNTER_MEMORY_ENERGY,
+      PM_COUNTER_CPU0_TEMP, PM_COUNTER_CPU1_TEMP };
+
+static int mpi_err = 0;
+static MPI_File log_fh = 0;
+static MPI_Status mpi_stat;
 
 static int all_initialised = 0;
 
@@ -79,28 +91,30 @@ int pm_is_accelerator_counter(const unsigned int i) {
   	  i == PM_COUNTER_ACCEL_POWER_CAP);
 }
 
-void pm_open_counter_files(int node_num) {
-    char cnt_fpath[MAX_FPATH_LEN];
-    unsigned int max_fname_len = MAX_FPATH_LEN - strlen(sys_pm_cnt_dir);
+
+int pm_is_node_water_cooled(int node_num) {
     struct stat sb;
+    int water_cooled = 0;
 
-    node_is_water_cooled = (stat(sys_pm_cnt_dir, &sb) == 0 && S_ISDIR(sb.st_mode));
-    node_is_air_cooled = !node_is_water_cooled;
-    if (node_is_water_cooled) {
-        fprintf(stderr, "pm_mpi_lib: rank %d detected water-cooled node %d!\n", rank, node_num);
-    }
-    else {
-        fprintf(stderr, "pm_mpi_lib: rank %d detected air-cooled node %d!\n", rank, node_num);
-	return;
+    if (stat(sys_pmc_dir, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+        water_cooled = 1;
     }
 
-    strcpy(cnt_fpath, sys_pm_cnt_dir);
-    strncat(cnt_fpath, cnt_fname[PM_COUNTER_FRESHNESS], max_fname_len);
+    return water_cooled;
+}
+
+
+void pm_open_counter_files(void) {
+    char cntr_fpath[MAX_FPATH_LEN];
+    unsigned int max_fname_len = MAX_FPATH_LEN - strlen(sys_pmc_dir);
+
+    strcpy(cntr_fpath, sys_pmc_dir);
+    strncat(cntr_fpath, cntr_fname[PM_COUNTER_FRESHNESS], max_fname_len);
     		
     // always open the freshness counter file first
-    cnt_fp[PM_COUNTER_FRESHNESS] = fopen(cnt_fpath, "r");
-    if (NULL == cnt_fp[PM_COUNTER_FRESHNESS]) {
-        fprintf(stderr, "pm_mpi_lib: failed to open %s!\n", cnt_fpath);
+    cntr_fp[PM_COUNTER_FRESHNESS] = fopen(cntr_fpath, "r");
+    if (NULL == cntr_fp[PM_COUNTER_FRESHNESS]) {
+        fprintf(stderr, "pm_mpi_lib: failed to open %s!\n", cntr_fpath);
     }
     else {  	
         // if the freshness counter has been opened successfully
@@ -110,12 +124,12 @@ void pm_open_counter_files(int node_num) {
   	        continue;
   	    }
   					
-  	    strcpy(cnt_fpath, sys_pm_cnt_dir);
-    	    strncat(cnt_fpath, cnt_fname[i], max_fname_len);
+  	    strcpy(cntr_fpath, sys_pmc_dir);
+    	    strncat(cntr_fpath, cntr_fname[i], max_fname_len);
 
-	    cnt_fp[i] = fopen(cnt_fpath, "r");
-    	    if (NULL == cnt_fp[i] && 0 == pm_is_accelerator_counter(i)) {
-      	        fprintf(stderr, "pm_mpi_lib: failed to open %s!\n", cnt_fpath);
+	    cntr_fp[i] = fopen(cntr_fpath, "r");
+    	    if (NULL == cntr_fp[i] && 0 == pm_is_accelerator_counter(i)) {
+      	        fprintf(stderr, "pm_mpi_lib: failed to open %s!\n", cntr_fpath);
       	    }			
         }
     }
@@ -124,9 +138,9 @@ void pm_open_counter_files(int node_num) {
 
 void pm_close_counter_files(void) {
     for (int i = 0; i < PM_NCOUNTERS; i++) {
-        if (NULL != cnt_fp[i]) {
-            fclose(cnt_fp[i]);
-            cnt_fp[i] = NULL;
+        if (NULL != cntr_fp[i]) {
+            fclose(cntr_fp[i]);
+            cntr_fp[i] = NULL;
         }
     }
 }
@@ -139,23 +153,23 @@ int pm_get_first_line(const unsigned int i, char* line, const unsigned int len) 
     int syserr = 0;
 
     memset(line, 0, len);
-    if (i < PM_NCOUNTERS && NULL != cnt_fp[i]) {
-        rewind(cnt_fp[i]);
+    if (i < PM_NCOUNTERS && NULL != cntr_fp[i]) {
+        rewind(cntr_fp[i]);
   	    
         do {
-            fgets(line, len, cnt_fp[i]);
+            fgets(line, len, cntr_fp[i]);
 
-    	    if (feof(cnt_fp[i])) {
+    	    if (feof(cntr_fp[i])) {
 	        // end of file reached,
 	        // assume the last len characters have been read
 	        break;
 	    }     
-	    else if (ferror(cnt_fp[i])) {
+	    else if (ferror(cntr_fp[i])) {
 	        if (EAGAIN != errno) {
 	            // error not due to file being busy
 	            // record error, zero line buffer and return
 	            syserr = errno;
-		    fprintf(stderr, "pm_get_first_line: failed for PM counter %d: errno = %d.\n", i, errno);
+		    fprintf(stderr, "pm_mpi_lib: pm_get_first_line failed for PM counter %d: errno = %d.\n", i, errno);
 		    strcpy(line, "0");
 		    break;
 		}
@@ -215,27 +229,16 @@ int pm_mpi_ok(void) {
     int ok = 0;
   
     if (-1 != rank) {
-        if (min_node_rank == rank) {
-            ok = (monitor_cnt > 0);
+        if (min_node_rank == rank && 0 != node_is_water_cooled) {
+            ok = (monitor_cnt > 0 && 0 != log_fh);
 
-	    if (node_is_water_cooled) {
-                ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_FRESHNESS]);
-                ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_STARTUP]);
+	    if (0 != node_is_water_cooled) {
+                ok = (0 != ok && NULL != cntr_fp[PM_COUNTER_FRESHNESS]);
+                ok = (0 != ok && NULL != cntr_fp[PM_COUNTER_STARTUP]);
 
-	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_POWER]);
-	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU_POWER]);
-	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_MEMORY_POWER]);
-
-	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_ENERGY]);
-                ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU_ENERGY]);
-	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_MEMORY_ENERGY]);
-
-	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU0_TEMP]);
-	        ok = (0 != ok && NULL != cnt_fp[PM_COUNTER_CPU1_TEMP]);
-            }
-
-            if (0 == rank) {
-                ok = (0 != ok && NULL != log_fp);
+		for (int i=0; i<PMC_CNTR_CNT; i++) {
+		    ok = (0 != ok && NULL != cntr_fp[pmc_index[i]]);
+		}
             }
         }
         else {
@@ -262,31 +265,28 @@ void pm_mpi_initialise(const char* log_fpath) {
   
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     
-    if (0 == rank) {
-        if (NULL != log_fp) {
-            fclose(log_fp);
-            log_fp = NULL;
-        }
-        // open power management counter log file
-        if (NULL == log_fp) {
-            log_fp = fopen(log_fpath, "w"); 
-        }
-        if (NULL == log_fp) {
-            log_fp = fopen("./pm_log.out", "w");
-        }
-    }
-
     // determine the number of the node running this process
     node_num = pm_get_node_number();
-      
+
     // determine if this rank is the minimum rank for the identified node number
     MPI_Comm_split(MPI_COMM_WORLD, node_num, rank, &mpi_comm_node);
     MPI_Allreduce(&rank, &min_node_rank, 1, MPI_INTEGER, MPI_MIN, mpi_comm_node);
  
     if (rank == min_node_rank) {
-        // the minimum rank on a node is responsible for monitoring
-        // the performance counters on that node  
-        MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &mpi_comm_monitor);
+	// the minimum rank on a node is responsible for monitoring
+        // the pm counters on that node...
+	
+        node_is_water_cooled = pm_is_node_water_cooled(node_num);
+
+	if (0 != node_is_water_cooled) {
+            // ...but pm counters are only available if node is water cooled
+            MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &mpi_comm_monitor);
+	    fprintf(stderr, "pm_mpi_lib: rank %d detected water-cooled node %d.\n", rank, node_num);
+	}
+	else {
+	    MPI_Comm_split(MPI_COMM_WORLD, 0, rank, &mpi_comm_monitor);
+	    fprintf(stderr, "pm_mpi_lib: rank %d detected air-cooled node %d!\n", rank, node_num);
+	}
     }
     else {
         MPI_Comm_split(MPI_COMM_WORLD, 0, rank, &mpi_comm_monitor);
@@ -295,7 +295,7 @@ void pm_mpi_initialise(const char* log_fpath) {
     // ensure all monitor ranks have self-identified...
     MPI_Barrier(MPI_COMM_WORLD);
     // ...before each monitor rank obtains the total number of monitors
-    if (min_node_rank == rank) {
+    if (min_node_rank == rank && 0 != node_is_water_cooled) {
         MPI_Comm_size(mpi_comm_monitor, &monitor_cnt);
     }
     else {
@@ -304,10 +304,20 @@ void pm_mpi_initialise(const char* log_fpath) {
     }
 
     system_error = 0;
-    if (min_node_rank == rank) {
-        pm_open_counter_files(node_num);
-	if (node_is_water_cooled) {
-            init_startup = pm_get_counter_value(PM_COUNTER_STARTUP);
+    if (min_node_rank == rank && 0 != node_is_water_cooled) {
+        pm_open_counter_files();
+
+        init_startup = pm_get_counter_value(PM_COUNTER_STARTUP);
+	
+        // open power management counter log file
+	mpi_err = MPI_File_open(mpi_comm_monitor, log_fpath,
+                                MPI_MODE_CREATE | MPI_MODE_WRONLY | MPI_MODE_APPEND,
+                                MPI_INFO_NULL, &log_fh);
+            
+        if (mpi_err != MPI_SUCCESS) {
+            fprintf(stderr, "pm_mpi_lib: MPI_File_open failed for rank %d: err = %d.\n", rank, mpi_err);
+	    log_fh = 0;
+	    mpi_err = 0;
 	}
     }
   
@@ -317,7 +327,6 @@ void pm_mpi_initialise(const char* log_fpath) {
     all_initialised = all_ok;
     if (0 != all_initialised) {
         // do initial record, which ends with MPI_Barrier
-        first_record = 1;
         pm_mpi_record(-1, 1, 1, 0);
     }
     else {
@@ -332,17 +341,17 @@ void pm_mpi_initialise(const char* log_fpath) {
 // and output those values if rank zero
 unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
   
-    if (min_node_rank != rank || node_is_air_cooled) {
+    if (min_node_rank != rank || 0 == node_is_water_cooled) {
         return PM_RECORD_OK;
     }
 
+    double pmc_data[PMC_FIELD_CNT] =
+        { (double) rank, MPI_Wtime(), (double) nstep, (double) sstep,
+	  0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0,
+          0.0, 0.0 };
+
     long int start_freshness, end_freshness;
-    long int pmc_node_power, pmc_cpu_power, pmc_mem_power;
-    long int pmc_node_energy, pmc_cpu_energy, pmc_mem_energy;
-    long int pmc_cpu0_temp, pmc_cpu1_temp;
-    
-    // get time
-    double tm = MPI_Wtime();
     
     // read the point-in-time power and temperature and accumulated energy counters
     int fresh = 0;
@@ -350,19 +359,11 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
     while (0 == fresh) {
         start_freshness = pm_get_counter_value(PM_COUNTER_FRESHNESS);
         
-	pmc_node_power  = pm_get_counter_value(PM_COUNTER_POWER);
-	pmc_cpu_power   = pm_get_counter_value(PM_COUNTER_CPU_POWER);
-        pmc_mem_power   = pm_get_counter_value(PM_COUNTER_MEMORY_POWER);
-
-        pmc_node_energy = pm_get_counter_value(PM_COUNTER_ENERGY);
-        pmc_cpu_energy  = pm_get_counter_value(PM_COUNTER_CPU_ENERGY);
-        pmc_mem_energy  = pm_get_counter_value(PM_COUNTER_MEMORY_ENERGY);
-
-        pmc_cpu0_temp   = pm_get_counter_value(PM_COUNTER_CPU0_TEMP);
-        pmc_cpu1_temp   = pm_get_counter_value(PM_COUNTER_CPU1_TEMP);
+	for (int i=0; i<PMC_CNTR_CNT; i++) {
+	    pmc_data[4+i] = (double) pm_get_counter_value(pmc_index[i]);
+        }
 
 	current_startup = pm_get_counter_value(PM_COUNTER_STARTUP);
-        
 	end_freshness   = pm_get_counter_value(PM_COUNTER_FRESHNESS);
         
 	fresh = (end_freshness == start_freshness);
@@ -378,23 +379,13 @@ unsigned int pm_mpi_read_counter_values(const int nstep, const int sstep) {
 	return PM_RECORD_BLADE_RESTART;
     }
     
-    // output data
-    if (0 == rank) {
-        if (0 != first_record) {
-            // this function is being called by pm_mpi_initialise()
-            if (NULL != log_fp) {
-                fprintf(log_fp, "pm_mpi_lib v%s: time (s), rank, step, substep, node (W), cpu (W), mem (W), node (J), cpu (J), mem (J), cpu0 (C), cpu1 (C)\n", ver);
-            }
-	    first_record = 0;
-        }
-
-        if (NULL != log_fp) {   
-            // update counter data file   
-            fprintf(log_fp, "%f %d %d %d %ld %ld %ld %ld %ld %ld %ld %ld\n",
-			    tm, rank, nstep, sstep,
-			    pmc_node_power, pmc_cpu_power, pmc_mem_power,
-			    pmc_node_energy, pmc_cpu_energy, pmc_mem_energy,
-			    pmc_cpu0_temp, pmc_cpu1_temp); 
+    if (0 != log_fh) {   
+        // write to counter log file
+	mpi_err = MPI_File_write_ordered(log_fh, pmc_data, PMC_FIELD_CNT, MPI_DOUBLE_PRECISION, &mpi_stat);
+	if (mpi_err != MPI_SUCCESS) {
+            fprintf(stderr, "pm_mpi_lib: MPI_File_write_ordered failed for rank %d: err = %d.\n", rank, mpi_err);
+            log_fh = 0;
+	    mpi_err = 0;
         }
     } 
   
@@ -445,14 +436,14 @@ void pm_mpi_finalise() {
         pm_mpi_record(last_nstep+1, 1, 1, 0);
     }
   
-    // if monitoring process (i.e., first process on node)    
-    if (min_node_rank == rank) {
+    // if monitoring process (i.e., first process on water-cooled node)    
+    if (min_node_rank == rank && 0 != node_is_water_cooled) {
         pm_close_counter_files();
         
-        if (0 == rank && NULL != log_fp) {
-            // close performance counter data file
-            fclose(log_fp);
-            log_fp = NULL;
+        if (0 != log_fh) {
+            // close pm counter log file
+	    MPI_File_close(&log_fh);
+            log_fh = 0;
         }
     }	
 

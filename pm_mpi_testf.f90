@@ -20,7 +20,7 @@ program pm_testf
  
   integer :: ierr, i, res
   integer :: comm, rank
-  character (len=13) :: pmc_out_fn = "pmc_test.out"//CHAR(0)
+  character (len=14) :: pmc_out_fn = "./pmc/log.out"//CHAR(0)
   
   call MPI_Init(ierr)
   
