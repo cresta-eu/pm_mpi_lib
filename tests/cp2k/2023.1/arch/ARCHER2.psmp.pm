@@ -41,7 +41,6 @@ WFLAGS      = -Werror=aliasing -Werror=ampersand -Werror=c-binding-type \
 
 
 CFLAGS   = -march=native -mtune=native -fno-omit-frame-pointer -g -O3 -funroll-loops \
-           -I$(PM_MPI_LIB_ROOT)/inc -I$(PM_MPI_LIB_ROOT)/mod/gnu \
            -I$(LIBINT_ROOT)/include  \
            -I$(LIBXC_ROOT)/include  \
            -I${MKLROOT}/include -m64 \
@@ -55,7 +54,8 @@ CXXFLAGS = -O2 -fPIC -fno-omit-frame-pointer -fopenmp -g -march=native -mtune=na
 
 FCFLAGS  = $(DFLAGS) $(WFLAGS) \
            -march=native -mtune=native -fno-omit-frame-pointer -g -O3 -funroll-loops \
-           -I$(LIBINT_ROOT)/include  \
+           -I$(PM_MPI_LIB_ROOT)/mod/gnu \
+	   -I$(LIBINT_ROOT)/include  \
            -I$(LIBXC_ROOT)/include  \
            -I${MKLROOT}/include -m64 \
            -I$(ELPA_ROOT)/include/elpa_openmp-$(ELPA_VERSION)/modules \
@@ -64,7 +64,8 @@ FCFLAGS  = $(DFLAGS) $(WFLAGS) \
 
 LDFLAGS  = $(FCFLAGS)  
 
-LIBS     = -L$(LIBINT_ROOT)/lib -lint2  \
+LIBS     = -L$(PM_MPI_LIB_ROOT)/lib/gnu -lpmmpi \
+           -L$(LIBINT_ROOT)/lib -lint2  \
            -L$(LIBXC_ROOT)/lib -lxcf90 -lxcf03 -lxc \
            -L$(ELPA_ROOT)/lib -lelpa_openmp \
            $(PLUMED_DEPENDENCIES) -lz \

@@ -12,8 +12,9 @@
 !> \author Matthias Krack (07.11.2002)
 ! **************************************************************************************************
 MODULE md_run
-   USE pm_mpi_lib
-
+   USE pm_mpi_lib,                      ONLY: pm_mpi_initialise,&
+                                              pm_mpi_record,&
+                                              pm_mpi_finalise
    USE atomic_kind_list_types,          ONLY: atomic_kind_list_type
    USE averages_types,                  ONLY: average_quantities_type
    USE barostat_types,                  ONLY: barostat_type,&

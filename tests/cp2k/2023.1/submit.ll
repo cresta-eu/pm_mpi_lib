@@ -16,4 +16,4 @@ export MPICH_CPUMASK_DISPLAY=1
 
 export OMP_NUM_THREADS=1
 
-srun --distribution=block:block --hint=nomultithread --unbuffered ./cp2k.psmp -i H2O-1024.inp >& stdouterr
+srun --distribution=block:block --hint=nomultithread --unbuffered ./cp2k.psmp.pm -i H2O-1024.inp >& stdouterr

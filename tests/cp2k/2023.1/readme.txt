@@ -13,13 +13,14 @@ module -q load mkl
 
 cd ./libs
 git clone https://github.com/cresta-eu/pm_mpi_lib.git
+cd ..
 
 cp ./src/motion/md_run.F ./src/motion/md_run.F.std
 cp ./libs/pm_mpi_lib/tests/cp2k/2023.1/src/motion/md_run.F ./src/motion/md_run.F.md
 cp ./src/motion/md_run.F.pm ./src/motion/md_run.F
 cp ./libs/pm_mpi_lib/tests/cp2k/2023.1/arch/ARCHER2.psmp.pm ./arch/
 
-make -j 16 ARCH=ARCHER2 VERSION=psmp.pm
+make -j 8 ARCH=ARCHER2 VERSION=psmp.pm
 
-The executable is written to ./exe/ARCHER2/cp2k.psmp and must be copied to the work area together with the necessary input data (see ./data/) before
+The executable is written to ./exe/ARCHER2/cp2k.psmp.pm and must be copied to the work area together with the necessary input data (see ./data/) before
 a cp2k job can be submitted.
