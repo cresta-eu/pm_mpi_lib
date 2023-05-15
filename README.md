@@ -9,27 +9,43 @@ The following text describes the interface provided by the three functions of th
 void pm_mpi_initialise(const char* out_fn)
 ```
 
-The parameter, `out_fn`, points to a null-terminated string that specifies the name of the file that will hold the PM counter data: a NULL parameter value will set the output file name to `pm_log.out`. The initialise function also calls `pm_mpi_record(-1,1,1,1)` in order to determine a baseline for the cumulative energy. In addition, rank 0 establishes a temporal baseline by calling `MPI_Wtime` and also writes a one-line header to the output file, which gives the library version followed by the names of the data items that will appear on subsequent lines.
+The parameter, `out_fn`, points to a null-terminated string that specifies the name of the log file that will hold the PM counter data, e.g., `${SLURM_SUBMIT_DIR}/pmc/log.out`. It is
+preferable to have the log file in a subfolder of the submission directory. That way, the subfolder can be created with the appropriate Lustre file striping options that will be
+subsequently applied to the log file. The initialise function determines which ranks will act as *monitors*. As each (water-cooled) compute node has its own PM counter files, there is
+one monitor rank per (water-ccoled) node. The monitor rank is responsible for reading the PM files and writing that data to the log file.
+
+The initialise function also calls `pm_mpi_record(-1,1,1,1)` in order to determine a baseline for the cumulative energy.
+
+Since the log file has multiple writers, it is written in binary via calls to `MPI_File_write_ordered`. There exists therefore a Python script for converting the binary log file
+to ASCII, called `make_ascii_log_file.py`, which takes two arguments, the path to the binary log file and the number of fields stored per log line - that number is 12.
+
 
 ```bash
 void pm_mpi_finalise(void)
 ```
 
-The finalise function calls `pm_mpi_record(nstep,1,1,0)` (described below). All counter files are closed, then rank 0 closes the output file.
+The finalise function calls `pm_mpi_record(nstep,1,1,0)` (described below). All counter files are closed, then the monitor ranks close the log file.
 
 ```bash
 void pm_mpi_record(const int nstep, const int sstep, const int initial_sync, const int initial_rec)
 ```
 
-The first two parameters (`nstep` and `sstep`) allow the client to label each set of counter values that are output by rank 0.<br>
+The first two parameters (`nstep` and `sstep`) allow the client to label each set of counter values that are output by each monitor rank.<br>
 If initial_sync is true `MPI_Barrier` is called before reading takes place.<br>
 If `initial_sync` and `initial_rec` are both true then the energy counters are read before and after the initial barrier.<br>
 Note, `initial_rec` is only used when `initial_sync` is true.
 
-The output file contains lines of space-separated fields. A description of each field follows (the C-language data type is given in square brackets).
+The binary output file contains a list of log lines, where each log line is a sequence of twelve 8-byte binary field. A description of each of these fields is given below.
 
-**Time [double]**: the time as measured by `MPI_Wtime` (called by rank zero) that has elapsed since the last call to `pm_mpi_open`.<br>
-**Step [int]**: a simple numerical label: e.g., the iteration count, assuming `pm_mpi_record` is being called from within a loop.<br>
-**Sub-step [int]**: another numerical label that might be required if there is more than one monitor call within the same loop.<br>
-**Point-in-time power [double]**: the average power reading across all assigned compute nodes.<br>
-**Energy [unsigned long long int]**: the energy used by all assigned compute nodes since the last call to `pm_mpi_initialise`.
+**Rank**: the monitor rank id.<br>
+**Time**: the time as measured by `MPI_Wtime`.<br>
+**Step**: a simple numerical label: e.g., the iteration count, assuming `pm_mpi_record` is being called from within a loop.<br>
+**Sub-step**: another numerical label that might be required if there is more than one monitor call within the same loop.<br>
+**Point-in-time node power [W]**: the node power reading for a particular compute node.<br>
+**Point-in-time power used by the CPU domain [W]**: the cpu domain power reading for a particular compute node.<br>
+**Point-in-time power used by the memory domain [W]**: the memory domain power reading for a particular compute node.<br>
+**Accumulated node energy [J]**: the node energy used by a particular compute node.<br>
+**Accumulated energy used by the CPU domain [J]**: the cpu domain energy used by a particular compute node.<br>
+**Accumulated energy used by the memory domain [J]**: the memory domain energy used by a particular compute node.<br>
+**Temperature Energy for the CPU domain on socket 0 [Celsius]**: the temperature reading for the cpu domain on socket 0.<br>
+**Temperature Energy for the CPU domain on socket 1 [Celsius]**: the temperature reading for the cpu domain on socket 1.<br>
