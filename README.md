@@ -1,7 +1,9 @@
 pm_mpi_lib
 ==========
 
-This repository holds source code for the `pm_mpi_lib` library. There are also two small test harnesses that demonstrate how to call the library functions from Fortran and C codes. Furthermore, the test folder contains readme files that explain exactly how to integrate the `pm_mpi_lib` source with the CP2K 2023.1 source code. Run make to build the `pm_mpi_lib` object and module (\*.mod) files. The make also builds executables for two test harnesses written in C and Fortran. When building for gnu and aocc environments run `make CFLAGS_EXTRA="-std=c99"`.
+This repository holds source code for the `pm_mpi_lib` library. There are also two small test harnesses that demonstrate how to call the library functions from Fortran and C codes.
+Furthermore, the test folder contains readme files that explain exactly how to integrate the `pm_mpi_lib` source with the CP2K 2023.1 source code. Run make to build the `pm_mpi_lib`
+object and module (`*.mod`) files. The make also builds executables for two test harnesses written in C and Fortran.
 
 The following text describes the interface provided by the three functions of the `pm_mpi_lib` library.
 
@@ -35,7 +37,7 @@ If initial_sync is true `MPI_Barrier` is called before reading takes place.<br>
 If `initial_sync` and `initial_rec` are both true then the energy counters are read before and after the initial barrier.<br>
 Note, `initial_rec` is only used when `initial_sync` is true.
 
-The binary output file contains a list of log lines, where each log line is a sequence of twelve 8-byte binary field. A description of each of these fields is given below.
+The binary output file contains a list of log lines, where each log line is a sequence of twelve 8-byte binary fields. A description of each of these fields is given below.
 
 **Rank**: the monitor rank id.<br>
 **Time**: the time as measured by `MPI_Wtime`.<br>
@@ -49,3 +51,12 @@ The binary output file contains a list of log lines, where each log line is a se
 **Accumulated energy used by the memory domain [J]**: the memory domain energy used by a particular compute node.<br>
 **Temperature Energy for the CPU domain on socket 0 [Celsius]**: the temperature reading for the cpu domain on socket 0.<br>
 **Temperature Energy for the CPU domain on socket 1 [Celsius]**: the temperature reading for the cpu domain on socket 1.<br>
+
+Lastly, the Slurm output file records which MPI rank (or monitor id) is responsible for which compute node (identified by `nid` number)..
+
+```bash
+pm_mpi_lib: rank 256 detected water-cooled node 5311.
+pm_mpi_lib: rank 384 detected water-cooled node 5312.
+pm_mpi_lib: rank 128 detected water-cooled node 5305.
+pm_mpi_lib: rank 0 detected water-cooled node 5301.
+```
