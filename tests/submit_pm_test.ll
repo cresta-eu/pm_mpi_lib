@@ -5,7 +5,7 @@
 #SBATCH --tasks-per-node=128
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:20:00
-#SBATCH --account=z19
+#SBATCH --account=[budget code]
 #SBATCH --partition=standard
 #SBATCH --qos=short
 
