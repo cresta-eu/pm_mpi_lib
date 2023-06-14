@@ -8,7 +8,7 @@ module -q restore
 module -q load PrgEnv-gnu
 module -q load cray-fftw
 module -q load cray-python
-module -q load cpe/21.09
+module -q load cpe/22.12
 module -q load mkl
 
 cd ./libs

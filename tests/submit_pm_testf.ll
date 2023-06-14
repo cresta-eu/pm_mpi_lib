@@ -11,10 +11,8 @@
 
 
 module -q restore
-module -q load cpe/21.09
+module -q load cpe/22.12
 module -q load PrgEnv-cray
-
-export LD_LIBRARY_PATH=${CRAY_LD_LIBRARY_PATH}:${LD_LIBRARY_PATH}
 
 
 export OMP_NUM_THREADS=1
