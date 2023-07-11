@@ -25,7 +25,7 @@
 #include "pm_mpi_lib.h"
 
 
-static const char ver[] = "5.0.0";
+static const char ver[] = "6.0.0";
 
 #define PM_RECORD_OK                 0
 #define PM_RECORD_UNINITIALISED      1
