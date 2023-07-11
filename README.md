@@ -14,7 +14,7 @@ void pm_mpi_initialise(const char* out_fn)
 The parameter, `out_fn`, points to a null-terminated string that specifies the name of the log file that will hold the PM counter data, e.g., `${SLURM_SUBMIT_DIR}/pmc/log.out`. It is
 preferable to have the log file in a subfolder of the submission directory. That way, the subfolder can be created with the appropriate Lustre file striping options that will be
 subsequently applied to the log file. The initialise function determines which ranks will act as *monitors*. As each (water-cooled) compute node has its own PM counter files, there is
-one monitor rank per (water-ccoled) node. The monitor rank is responsible for reading the PM files and writing that data to the log file.
+one monitor rank per (water-cooled) node. The monitor rank is responsible for reading the PM files and writing that data to the log file.
 
 The initialise function also calls `pm_mpi_record(-1,1,1,1)` in order to determine a baseline for the cumulative energy.
 
